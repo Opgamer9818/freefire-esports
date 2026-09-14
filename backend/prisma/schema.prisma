@@ -1,0 +1,475 @@
+// ============================================================
+// Free Fire Esports Tournament App — Database Schema
+// Phase 1 deliverable.
+// Run `npx prisma migrate dev --name init` after setting DATABASE_URL
+// in your .env to create these tables in Postgres.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- ENUMS ----------------
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TournamentFormat {
+  SOLO
+  DUO
+  SQUAD
+  CUSTOM
+}
+
+enum TournamentStatus {
+  DRAFT
+  UPCOMING
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  FULL
+  ROOM_RELEASED
+  LIVE
+  RESULT_PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+enum WalletTxnType {
+  COIN_PURCHASE
+  TOURNAMENT_ENTRY
+  PRIZE_CREDIT
+  REFUND
+  REDEEM_CREDIT
+  WITHDRAWAL_RESERVE
+  WITHDRAWAL_DEBIT
+  WITHDRAWAL_REVERSAL
+  ADMIN_ADJUSTMENT
+}
+
+enum WalletTxnStatus {
+  PENDING
+  COMPLETED
+  REVERSED
+}
+
+enum PaymentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum RedeemRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum NotificationType {
+  REGISTRATION_SUCCESS
+  PAYMENT_RECEIVED
+  PAYMENT_APPROVED
+  PAYMENT_REJECTED
+  COINS_CREDITED
+  TOURNAMENT_REMINDER
+  TOURNAMENT_STARTING
+  ROOM_RELEASED
+  TOURNAMENT_CANCELLED
+  REFUND_COMPLETED
+  RESULT_PUBLISHED
+  PRIZE_CREDITED
+  WITHDRAWAL_STATUS_CHANGED
+  REDEEM_STATUS_CHANGED
+  ACCOUNT_BAN
+  ACCOUNT_UNBAN
+  GENERAL
+}
+
+enum SupportCategory {
+  PAYMENT
+  TOURNAMENT
+  WITHDRAWAL
+  REDEEM
+  ACCOUNT
+  GENERAL
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum LeaderboardPeriod {
+  TOURNAMENT
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
+
+// ---------------- USERS ----------------
+
+model User {
+  id          String   @id @default(uuid())
+  firebaseUid String   @unique
+  email       String?  @unique
+  phone       String?  @unique
+  role        UserRole @default(USER)
+  isBanned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile            Profile?
+  wallet             Wallet?
+  walletTransactions WalletTransaction[]
+  registrations      TournamentRegistration[]
+  teamsCaptained     Team[]
+  teamMemberships    TeamMember[]
+  paymentRequests    PaymentRequest[]
+  redeemRequests     RedeemRequest[]
+  withdrawalRequests WithdrawalRequest[]
+  notifications      Notification[]
+  supportTickets     SupportTicket[]
+  bans               Ban[]
+  results            TournamentResult[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([role])
+  @@index([isBanned])
+}
+
+model Profile {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName          String?
+  fullName             String?
+  avatarUrl            String?
+  ffUid                String?
+  ffIgn                String?
+  whatsappNumber       String?
+  country              String?
+  themePreference      String   @default("black_gold")
+  notificationsEnabled Boolean  @default(true)
+  fcmToken             String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([ffUid])
+}
+
+// ---------------- TEAMS ----------------
+
+model Team {
+  id           String     @id @default(uuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String
+  captainId    String
+  captain      User       @relation(fields: [captainId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  members      TeamMember[]
+  registration TournamentRegistration?
+
+  @@unique([tournamentId, name])
+  @@index([tournamentId])
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  ffUid     String
+  ffIgn     String
+  contact   String?
+  isCaptain Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+}
+
+// ---------------- TOURNAMENTS ----------------
+
+model Tournament {
+  id                  String           @id @default(uuid())
+  name                String
+  game                String           @default("Free Fire")
+  bannerUrl           String?
+  description         String?
+  format              TournamentFormat
+  teamSize            Int              @default(1)
+  entryFeeCoins       Int              @default(0)
+  isFree              Boolean          @default(false)
+  prizePool           Int              @default(0)
+  slots               Int
+  slotsFilled         Int              @default(0)
+  date                DateTime
+  startTime           DateTime
+  registrationOpenAt  DateTime
+  registrationCloseAt DateTime
+  rules               String?
+  scoringRules        String?
+  roomId              String?
+  roomPassword        String?
+  roomReleaseAt       DateTime?
+  status              TournamentStatus @default(DRAFT)
+  featured            Boolean          @default(false)
+  createdByAdminId    String
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  teams              Team[]
+  registrations      TournamentRegistration[]
+  results            TournamentResult[]
+  leaderboardEntries LeaderboardEntry[]
+
+  @@index([status])
+  @@index([date])
+  @@index([isFree])
+}
+
+model TournamentRegistration {
+  id           String             @id @default(uuid())
+  tournamentId String
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id])
+  userId       String
+  user         User               @relation(fields: [userId], references: [id])
+  teamId       String?            @unique
+  team         Team?              @relation(fields: [teamId], references: [id])
+  status       RegistrationStatus @default(CONFIRMED)
+  entryFeePaid Int                @default(0)
+  registeredAt DateTime           @default(now())
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
+}
+
+model TournamentResult {
+  id           String     @id @default(uuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  teamId       String?
+  rank         Int?
+  kills        Int        @default(0)
+  points       Int        @default(0)
+  prizeCoins   Int        @default(0)
+  notes        String?
+  processed    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
+}
+
+// ---------------- WALLET ----------------
+// wallets.availableBalance / reservedBalance are CACHED values only.
+// They must only ever be updated in the same DB transaction as a
+// WalletTransaction insert — never written to directly by any other code path.
+
+model Wallet {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  availableBalance Int      @default(0)
+  reservedBalance  Int      @default(0)
+  updatedAt        DateTime @updatedAt
+}
+
+model WalletTransaction {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id])
+  type             WalletTxnType
+  amount           Int
+  balanceAfter     Int
+  status           WalletTxnStatus @default(COMPLETED)
+  idempotencyKey   String          @unique
+  reference        String?
+  description      String?
+  createdByAdminId String?
+  createdAt        DateTime        @default(now())
+
+  @@index([userId])
+  @@index([type])
+}
+
+// ---------------- PAYMENTS / REDEEM / WITHDRAWAL ----------------
+
+model PaymentRequest {
+  id             String               @id @default(uuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id])
+  requestedCoins Int
+  expectedAmount Int
+  upiDestination String
+  utrReference   String?
+  screenshotUrl  String?
+  status         PaymentRequestStatus @default(PENDING)
+  adminId        String?
+  adminNote      String?
+  idempotencyKey String               @unique
+  createdAt      DateTime             @default(now())
+  resolvedAt     DateTime?
+
+  @@index([status])
+  @@index([userId])
+}
+
+model RedeemRequest {
+  id            String              @id @default(uuid())
+  userId        String
+  user          User                @relation(fields: [userId], references: [id])
+  code          String
+  codeHash      String              @unique
+  status        RedeemRequestStatus @default(PENDING)
+  approvedCoins Int?
+  adminId       String?
+  adminNote     String?
+  createdAt     DateTime            @default(now())
+  resolvedAt    DateTime?
+
+  @@index([status])
+}
+
+model WithdrawalRequest {
+  id         String           @id @default(uuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id])
+  amount     Int
+  upiId      String
+  upiQrUrl   String?
+  status     WithdrawalStatus @default(PENDING)
+  adminId    String?
+  adminNote  String?
+  createdAt  DateTime         @default(now())
+  resolvedAt DateTime?
+
+  @@index([status])
+  @@index([userId])
+}
+
+// ---------------- ADMIN ----------------
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  passwordHash String
+  role         String    @default("admin")
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  actions AdminAction[]
+}
+
+model AdminAction {
+  id         String    @id @default(uuid())
+  adminId    String
+  admin      AdminUser @relation(fields: [adminId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  beforeJson Json?
+  afterJson  Json?
+  reason     String?
+  createdAt  DateTime  @default(now())
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+}
+
+// ---------------- BANS / SUPPORT / SETTINGS ----------------
+
+model Ban {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  reason          String
+  bannedByAdminId String
+  bannedAt        DateTime  @default(now())
+  expiresAt       DateTime?
+  active          Boolean   @default(true)
+
+  @@index([userId])
+}
+
+model SupportTicket {
+  id            String          @id @default(uuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id])
+  category      SupportCategory
+  message       String
+  status        SupportStatus   @default(OPEN)
+  adminResponse String?
+  createdAt     DateTime        @default(now())
+  resolvedAt    DateTime?
+
+  @@index([status])
+}
+
+model AppSetting {
+  key              String   @id
+  value            Json
+  updatedByAdminId String?
+  updatedAt        DateTime @updatedAt
+}
+
+// ---------------- NOTIFICATIONS / LEADERBOARD ----------------
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+}
+
+model LeaderboardEntry {
+  id                String            @id @default(uuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  tournamentId      String?
+  tournament        Tournament?       @relation(fields: [tournamentId], references: [id])
+  period            LeaderboardPeriod
+  points            Int               @default(0)
+  kills             Int               @default(0)
+  wins              Int               @default(0)
+  tournamentsPlayed Int               @default(0)
+  winnings          Int               @default(0)
+  rank              Int?
+  computedAt        DateTime          @default(now())
+
+  @@index([period, rank])
+}

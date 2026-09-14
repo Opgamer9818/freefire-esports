@@ -1,0 +1,7 @@
+<resources>
+    <!-- Compose owns the real theming (see ui/theme/Theme.kt). This base
+         platform theme just satisfies Android's requirement that every
+         Activity have one, and sets a NoActionBar style since every
+         screen is drawn by Compose. -->
+    <style name="Theme.FreeFireEsports" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

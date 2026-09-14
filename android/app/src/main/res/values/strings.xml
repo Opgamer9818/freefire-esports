@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Free Fire Esports</string>
+
+    <!-- Firebase Console → Authentication → Sign-in method → Google →
+         Web SDK configuration → "Web client ID". Paste it below.
+         This is a public identifier, not a secret — safe to ship in the app. -->
+    <string name="web_client_id" translatable="false">REPLACE_WITH_YOUR_FIREBASE_WEB_CLIENT_ID</string>
+</resources>

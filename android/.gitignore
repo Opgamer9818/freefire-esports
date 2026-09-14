@@ -1,0 +1,17 @@
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# Each developer's own Firebase project file — never shared/committed.
+app/google-services.json
+
+# Release signing — never commit your real keystore or its passwords.
+keystore.properties
+*.keystore
+*.jks
